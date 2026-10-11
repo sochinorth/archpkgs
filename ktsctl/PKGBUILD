@@ -1,0 +1,36 @@
+# Maintainer: Your Name <ed2092000 at gmail dot com>
+
+pkgname=ktsctl
+pkgver=3.1.4
+pkgrel=1
+pkgdesc="Controller for kak-tree-sitter: fetches, compiles and installs grammars and queries"
+arch=('x86_64')
+url="https://sr.ht/~hadronized/kak-tree-sitter/"
+license=('BSD-3-Clause')
+depends=('gcc-libs' 'glibc' 'git')
+makedepends=('rust')
+optdepends=('kak-tree-sitter: the server these grammars are for'
+            'gcc: compiling grammars (any C compiler providing cc works)')
+options=('!lto')
+source=("$pkgname-$pkgver.tar.gz::https://static.crates.io/crates/$pkgname/$pkgname-$pkgver.crate")
+sha256sums=('a87f1d7ac18d22d9bd0b24080b3722a4d1f2976e7734027e0df382908248bbd6')
+
+prepare() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --release
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 "target/release/$pkgname" -t "$pkgdir/usr/bin"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
+  install -Dm644 README.md -t "$pkgdir/usr/share/doc/$pkgname"
+}

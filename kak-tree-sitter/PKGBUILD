@@ -1,0 +1,36 @@
+# Maintainer: Your Name <ed2092000 at gmail dot com>
+
+pkgname=kak-tree-sitter
+pkgver=3.2.2
+pkgrel=1
+pkgdesc="Server between Kakoune and tree-sitter"
+arch=('x86_64')
+url="https://sr.ht/~hadronized/kak-tree-sitter/"
+license=('BSD-3-Clause')
+depends=('gcc-libs' 'glibc')
+makedepends=('rust')
+optdepends=('kakoune: the editor this serves'
+            'ktsctl: fetch, compile and install grammars and queries')
+options=('!lto')
+source=("$pkgname-$pkgver.tar.gz::https://static.crates.io/crates/$pkgname/$pkgname-$pkgver.crate")
+sha256sums=('4fd03b16309a759558974ac88ddafb764ab314154349c4891eea27a70823c052')
+
+prepare() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd "$pkgname-$pkgver"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  cargo build --frozen --release
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 "target/release/$pkgname" -t "$pkgdir/usr/bin"
+  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
+  install -Dm644 README.md -t "$pkgdir/usr/share/doc/$pkgname"
+}
