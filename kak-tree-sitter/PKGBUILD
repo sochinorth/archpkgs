@@ -1,36 +1,54 @@
 # Maintainer: Your Name <ed2092000 at gmail dot com>
+#
+# Upstream publishes the server and its controller as two crates with their
+# own version numbers. pkgver follows kak-tree-sitter; _ktsctlver tracks
+# ktsctl, and a ktsctl-only release bumps pkgrel (see update.sh).
 
 pkgname=kak-tree-sitter
 pkgver=3.2.2
+_ktsctlver=3.1.4
 pkgrel=1
-pkgdesc="Server between Kakoune and tree-sitter"
+pkgdesc="Server between Kakoune and tree-sitter, with the ktsctl grammar and query manager"
 arch=('x86_64')
 url="https://sr.ht/~hadronized/kak-tree-sitter/"
 license=('BSD-3-Clause')
-depends=('gcc-libs' 'glibc')
+depends=('gcc-libs' 'glibc' 'git')
 makedepends=('rust')
 optdepends=('kakoune: the editor this serves'
-            'ktsctl: fetch, compile and install grammars and queries')
+						'gcc: ktsctl compiling grammars (any C compiler providing cc works)')
+provides=("ktsctl=$_ktsctlver")
+conflicts=('ktsctl')
+replaces=('ktsctl')
 options=('!lto')
-source=("$pkgname-$pkgver.tar.gz::https://static.crates.io/crates/$pkgname/$pkgname-$pkgver.crate")
-sha256sums=('4fd03b16309a759558974ac88ddafb764ab314154349c4891eea27a70823c052')
+source=("kak-tree-sitter-$pkgver.tar.gz::https://static.crates.io/crates/kak-tree-sitter/kak-tree-sitter-$pkgver.crate"
+				"ktsctl-$_ktsctlver.tar.gz::https://static.crates.io/crates/ktsctl/ktsctl-$_ktsctlver.crate")
+sha256sums=('4fd03b16309a759558974ac88ddafb764ab314154349c4891eea27a70823c052'
+						'a87f1d7ac18d22d9bd0b24080b3722a4d1f2976e7734027e0df382908248bbd6')
+
+_crates=("kak-tree-sitter-$pkgver" "ktsctl-$_ktsctlver")
 
 prepare() {
-  cd "$pkgname-$pkgver"
-  export RUSTUP_TOOLCHAIN=stable
-  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+	export RUSTUP_TOOLCHAIN=stable
+	local target crate
+	target=$(rustc -vV | sed -n 's/host: //p')
+	for crate in "${_crates[@]}"; do
+		(cd "$crate" && cargo fetch --locked --target "$target")
+	done
 }
 
 build() {
-  cd "$pkgname-$pkgver"
-  export RUSTUP_TOOLCHAIN=stable
-  export CARGO_TARGET_DIR=target
-  cargo build --frozen --release
+	export RUSTUP_TOOLCHAIN=stable
+	export CARGO_TARGET_DIR=target
+	local crate
+	for crate in "${_crates[@]}"; do
+		(cd "$crate" && cargo build --frozen --release)
+	done
 }
 
 package() {
-  cd "$pkgname-$pkgver"
-  install -Dm755 "target/release/$pkgname" -t "$pkgdir/usr/bin"
-  install -Dm644 LICENSE -t "$pkgdir/usr/share/licenses/$pkgname"
-  install -Dm644 README.md -t "$pkgdir/usr/share/doc/$pkgname"
+	install -Dm755 "kak-tree-sitter-$pkgver/target/release/kak-tree-sitter" -t "$pkgdir/usr/bin"
+	install -Dm755 "ktsctl-$_ktsctlver/target/release/ktsctl" -t "$pkgdir/usr/bin"
+	install -Dm644 "kak-tree-sitter-$pkgver/LICENSE" -t "$pkgdir/usr/share/licenses/$pkgname"
+	install -Dm644 "kak-tree-sitter-$pkgver/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+	install -Dm644 "ktsctl-$_ktsctlver/README.md" "$pkgdir/usr/share/doc/$pkgname/README-ktsctl.md"
 }
