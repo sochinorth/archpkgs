@@ -1,0 +1,16 @@
+diff --git a/src/kakoune/selection.rs b/src/kakoune/selection.rs
+index df73b79..3b006c4 100644
+--- a/src/kakoune/selection.rs
++++ b/src/kakoune/selection.rs
+@@ -45,8 +45,10 @@ impl Pos {
+   }
+ 
+   /// Convert a [`Pos`] into a byte representation (tree-sitter).
++  ///
++  /// Kakoune is 1-indexed, tree-sitter / ropey are 0-indexed (see [`Pos::from_tree_sitter`]).
+   pub fn into_tree_sitter(self, buf: RopeSlice) -> usize {
+-    buf.line_to_byte(self.line) + self.col
++    buf.line_to_byte(self.line.saturating_sub(1)) + self.col.saturating_sub(1)
+   }
+ }
+ 
