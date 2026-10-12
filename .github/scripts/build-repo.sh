@@ -155,8 +155,10 @@ done
 <!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>$REPO_NAME</title>
 <style>
+	:root { color-scheme: light dark; }
 	body { font: 15px/1.55 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
 	pre { background: #8881; padding: .8rem 1rem; overflow-x: auto; border-radius: 6px; }
 </style>
