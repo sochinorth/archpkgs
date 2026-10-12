@@ -1,0 +1,36 @@
+diff --git a/src/protocol/response.rs b/src/protocol/response.rs
+index 07ebb2a..760cf8b 100644
+--- a/src/protocol/response.rs
++++ b/src/protocol/response.rs
+@@ -110,6 +110,11 @@ impl Payload {
+   pub fn serialize_into(&self, resp_str: &mut String) -> Result<(), fmt::Error> {
+     match self {
+       Payload::Init { enabled_langs } => {
++        // a session can be initialized again (see SessionBegin), its trees forgotten server side: start from a clean
++        // slate, as tree-sitter-reload does, so that hooks don’t pile up and every buffer sets tree_sitter_lang anew
++        // (setting it to the value it already has runs no hook) and sends its content again
++        writeln!(resp_str, "tree-sitter-remove-all")?;
++
+         for enabled_lang in enabled_langs {
+           let name = &enabled_lang.name;
+ 
+diff --git a/src/server/io.rs b/src/server/io.rs
+index e84c9de..acd6932 100644
+--- a/src/server/io.rs
++++ b/src/server/io.rs
+@@ -254,8 +254,13 @@ impl IOHandler {
+       request::Payload::SessionBegin => {
+         let session = req.session();
+         if session_tracker.tracks(session) {
+-          log::warn!("session {session} already tracked");
+-          return Ok(Feedback::Ok);
++          // a session that went away without ending (killed, or quit before the init response installed its KakEnd
++          // hook) is still tracked; one started later with the same name must still be initialized, or it gets no
++          // tree-sitter at all: forget the previous one’s state, and initialize again
++          log::warn!("session {session} already tracked; initializing it again");
++          self.command_sender.send(Command::SessionEnd {
++            metadata: req.metadata.clone(),
++          })?;
+         }
+ 
+         log::info!("registering session {}", req.session());

@@ -5,7 +5,7 @@ name: Build pacman repo
 
 on:
   push:
-    branches: [main]
+    branches: [trunk]
   schedule:
     - cron: "23 5 * * *"   # daily: picks up new upstream versions via update.sh
   workflow_dispatch:

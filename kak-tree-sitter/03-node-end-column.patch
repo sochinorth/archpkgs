@@ -1,0 +1,117 @@
+diff --git a/src/kakoune/selection.rs b/src/kakoune/selection.rs
+index 3b006c4..4b6508a 100644
+--- a/src/kakoune/selection.rs
++++ b/src/kakoune/selection.rs
+@@ -44,6 +44,23 @@ impl Pos {
+     }
+   }
+ 
++  /// Position of the last character of a node: the (inclusive) end of a Kakoune selection of that node.
++  ///
++  /// Tree-sitter’s end byte is exclusive. Its position minus one column is wrong when the node ends with a newline (the
++  /// root node, a C `#include` line, …): the end byte is then at the start of the next line — past the end of the
++  /// buffer, for the root node — and the column comes out as 0, which Kakoune rejects. Take the character before the
++  /// end byte instead; this also lands on the first byte of a multi-byte character, as Kakoune expects.
++  pub fn node_end(buf: RopeSlice, node: &Node) -> Self {
++    let (start, end) = (node.start_byte() as usize, node.end_byte() as usize);
++    let last = if end > start {
++      buf.char_to_byte(buf.byte_to_char(end - 1))
++    } else {
++      start // empty node
++    };
++
++    Self::from_tree_sitter(buf, last as _)
++  }
++
+   /// Convert a [`Pos`] into a byte representation (tree-sitter).
+   ///
+   /// Kakoune is 1-indexed, tree-sitter / ropey are 0-indexed (see [`Pos::from_tree_sitter`]).
+@@ -116,16 +133,14 @@ impl Sel {
+ 
+   /// Same as [`Sel::replace`], but with a node’s content.
+   pub fn replace_with_node(&self, buf: RopeSlice, node: &Node) -> Self {
+-    let mut b = Pos::from_tree_sitter(buf, node.end_byte() as _);
+-    b.col -= 1; // kakoune selections are inclusive
++    let b = Pos::node_end(buf, node); // kakoune selections are inclusive
+     self.replace(&Pos::from_tree_sitter(buf, node.start_byte() as _), &b)
+   }
+ 
+   /// Check whether a selection selects a node.
+   pub fn selects(&self, buf: RopeSlice, node: &Node<'_>) -> bool {
+     let start = Pos::from_tree_sitter(buf, node.start_byte() as _);
+-    let mut end = Pos::from_tree_sitter(buf, node.end_byte() as _);
+-    end.col -= 1;
++    let end = Pos::node_end(buf, node);
+ 
+     if self.anchor <= self.cursor {
+       self.anchor <= start && self.cursor >= end
+@@ -137,8 +152,7 @@ impl Sel {
+   /// Check whether a selection fully selects a node.
+   pub fn fully_selects(&self, buf: RopeSlice, node: &Node) -> bool {
+     let start = Pos::from_tree_sitter(buf, node.start_byte() as _);
+-    let mut end = Pos::from_tree_sitter(buf, node.end_byte() as _);
+-    end.col -= 1;
++    let end = Pos::node_end(buf, node);
+ 
+     if self.anchor <= self.cursor {
+       self.anchor == start && self.cursor == end
+diff --git a/src/tree_sitter/state.rs b/src/tree_sitter/state.rs
+index 271da4f..b012882 100644
+--- a/src/tree_sitter/state.rs
++++ b/src/tree_sitter/state.rs
+@@ -300,8 +300,7 @@ impl TreeState {
+     let p = sel.anchor.max(sel.cursor);
+     let node = Self::tree_sitter_node_after(buf, &p, nodes)?;
+     let start = Pos::from_tree_sitter(buf, node.start_byte());
+-    let mut end = Pos::from_tree_sitter(buf, node.end_byte());
+-    end.col -= 1;
++    let end = Pos::node_end(buf, &node);
+ 
+     Some(sel.replace(&start, &end))
+   }
+@@ -315,8 +314,7 @@ impl TreeState {
+     let p = sel.anchor.min(sel.cursor);
+     let node = Self::tree_sitter_node_before(buf, &p, nodes)?;
+     let start = Pos::from_tree_sitter(buf, node.start_byte());
+-    let mut end = Pos::from_tree_sitter(buf, node.end_byte());
+-    end.col -= 1;
++    let end = Pos::node_end(buf, &node);
+ 
+     Some(sel.replace(&start, &end))
+   }
+@@ -397,7 +395,7 @@ impl TreeState {
+       .filter(move |node| sel.selects(buf, node))
+       .map(move |node| {
+         let start = Pos::from_tree_sitter(buf, node.start_byte());
+-        let end = Pos::from_tree_sitter(buf, node.end_byte());
++        let end = Pos::node_end(buf, &node);
+         sel.replace(&start, &end)
+       })
+   }
+@@ -422,9 +420,7 @@ impl TreeState {
+         let cursor = if flags.to_begin {
+           Pos::from_tree_sitter(buf, node.start_byte())
+         } else if flags.to_end {
+-          let mut p = Pos::from_tree_sitter(buf, node.end_byte());
+-          p.col -= 1;
+-          p
++          Pos::node_end(buf, &node)
+         } else {
+           return None;
+         };
+@@ -440,13 +436,11 @@ impl TreeState {
+           Some(Sel { anchor, cursor })
+         } else if !flags.to_begin && flags.to_end {
+           let anchor = sel.cursor;
+-          let mut cursor = Pos::from_tree_sitter(buf, node.end_byte());
+-          cursor.col -= 1;
++          let cursor = Pos::node_end(buf, &node);
+           Some(Sel { anchor, cursor })
+         } else if flags.to_begin && flags.to_end {
+           let anchor = Pos::from_tree_sitter(buf, node.start_byte());
+-          let mut cursor = Pos::from_tree_sitter(buf, node.end_byte());
+-          cursor.col -= 1;
++          let cursor = Pos::node_end(buf, &node);
+           Some(Sel { anchor, cursor })
+         } else {
+           None
